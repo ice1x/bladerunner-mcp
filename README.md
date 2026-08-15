@@ -41,7 +41,7 @@ pip install bladerunner-mcp
 
 ## Configuration
 
-Copy [bladerunner_mcp.example.yaml](bladerunner_mcp.example.yaml) to
+Copy [bladerunner_mcp.example.yaml](https://github.com/ice1x/bladerunner-mcp/blob/main/bladerunner_mcp.example.yaml) to
 `~/.bladerunner_mcp.yaml` (or set `BLADERUNNER_MCP_CONFIG` to its path):
 
 ```yaml
@@ -100,7 +100,7 @@ Claude Desktop (`claude_desktop_config.json`):
 
 ## Design
 
-- One short file ([bladerunner_mcp/server.py](bladerunner_mcp/server.py)) built on
+- One short file ([bladerunner_mcp/server.py](https://github.com/ice1x/bladerunner-mcp/blob/main/bladerunner_mcp/server.py)) built on
   `MCPServer` from the official `mcp` Python SDK.
 - Command execution via **paramiko**; background processes follow the
   nohup + PID + exit-code-file pattern proven in
@@ -140,4 +140,7 @@ ruff check . && mypy bladerunner_mcp
 - [x] 17. Add `strict_host_key` per-host option (system known_hosts for both paramiko and rsync)
 - [x] 18. Add dangerous-command safety filter with per-host `allow_dangerous` opt-out
 - [x] 19. Add audit logging of executed commands to stderr and YOLO-mode warning (README + server instructions)
-- [ ] 20. Publish `bladerunner-mcp` to PyPI (trusted-publishing workflow is in place; needs a PyPI project + `pypi` environment configured on GitHub)
+- [x] 20. Retry transient SSH connection errors (3 attempts with backoff; auth/host-key errors fail fast)
+- [x] 21. Fix PID-reuse race: liveness matched on the process command line (`ps -p -o args=` with `/proc` fallback), not bare `kill -0`
+- [x] 22. Cap `check_process` log tails by bytes and polish PyPI metadata (classifiers, keywords, project URLs)
+- [ ] 23. Publish `bladerunner-mcp` to PyPI (trusted-publishing workflow is in place; needs a PyPI project + `pypi` environment configured on GitHub)
