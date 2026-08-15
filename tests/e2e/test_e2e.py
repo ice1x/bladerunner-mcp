@@ -11,11 +11,13 @@ import pytest
 import yaml
 
 from bladerunner_mcp.server import (
+    MAX_OUTPUT_BYTES,
     check_process,
     get_file,
     kill_process,
     list_hosts,
     put_file,
+    read_output,
     run_command,
     start_process,
 )
@@ -79,7 +81,38 @@ def test_list_hosts(host):
 
 def test_run_command_streams_and_exit_code(host):
     result = run_command(host, "echo hello && echo oops >&2; exit 3")
-    assert result == {"stdout": "hello\n", "stderr": "oops\n", "exit_code": 3}
+    assert (result["stdout"], result["stderr"], result["exit_code"]) == ("hello\n", "oops\n", 3)
+    assert result["truncated"] is False
+    assert result["work_dir"] is None
+
+
+def test_run_command_timeout(host):
+    with pytest.raises(TimeoutError, match="did not finish"):
+        run_command(host, "sleep 30", timeout=3)
+
+
+def test_large_output_truncation_and_pagination(host):
+    size = MAX_OUTPUT_BYTES * 2 + 12345
+    result = run_command(host, f"head -c {size} /dev/zero | tr '\\0' a")
+    assert result["truncated"] is True
+    assert result["stdout_bytes"] == size
+    assert len(result["stdout"].encode()) == MAX_OUTPUT_BYTES
+    data, offset = "", 0
+    while True:
+        page = read_output(host, result["work_dir"], offset=offset)
+        data += page["data"]
+        offset += page["bytes"]
+        if page["eof"]:
+            break
+    assert data == "a" * size
+
+
+def test_small_output_work_dir_cleaned(host):
+    count = "ls /tmp/bladerunner_mcp | wc -l"
+    before = run_command(host, count)["stdout"].strip()
+    result = run_command(host, "echo tidy")
+    assert result["work_dir"] is None
+    assert run_command(host, count)["stdout"].strip() == before
 
 
 def test_process_lifecycle(host):

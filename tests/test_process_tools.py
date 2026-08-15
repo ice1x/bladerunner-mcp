@@ -80,3 +80,9 @@ def test_kill_process_already_gone(ssh, host):
     result = kill_process(host, 42)
     assert result["killed"] is False
     assert "no such process" in result["detail"]
+
+
+def test_check_process_rejects_foreign_work_dir(ssh, host):
+    with pytest.raises(ValueError, match="work_dir"):
+        check_process(host, 42, "/etc; rm -rf /")
+    ssh.connect.assert_not_called()
