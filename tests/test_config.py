@@ -55,3 +55,15 @@ def test_write_config_yaml_roundtrip(write_config, fake):
     path = write_config({"box": {"host": ip, "user": fake.user_name()}})
     with open(path) as f:
         assert yaml.safe_load(f)["hosts"]["box"]["host"] == ip
+
+
+def test_strict_host_key_defaults_false(write_config, fake):
+    path = write_config({"box": {"host": fake.ipv4(), "user": fake.user_name()}})
+    assert load_hosts(path)["box"].strict_host_key is False
+
+
+def test_strict_host_key_parsed(write_config, fake):
+    path = write_config(
+        {"box": {"host": fake.ipv4(), "user": fake.user_name(), "strict_host_key": True}}
+    )
+    assert load_hosts(path)["box"].strict_host_key is True

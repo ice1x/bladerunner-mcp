@@ -2,22 +2,36 @@
 
 MCP server that lets an AI session operate your remote machines over SSH.
 
+> ⚠️ **These tools run real commands on real servers with your credentials.**
+> Running your MCP client in auto-approve ("YOLO") mode means the model can
+> execute anything on your machines without you seeing it first. Keep manual
+> approval on for this server, use least-privilege SSH accounts, and have
+> backups/snapshots for anything you point it at. See [Security](#security).
+
 You `pip install bladerunner-mcp`, describe your hosts (e.g. a Hetzner box) in a
 YAML config with credentials, and the server exposes MCP tools to run commands,
 track long-running processes and transfer files on those hosts. The model only
 ever sees host aliases — secrets never enter the conversation.
+
+**Scope:** POSIX remote hosts only (`sh`, `nohup`, `tail`, `head`, `wc` must be
+present on the target). Windows hosts are not supported.
 
 ## Tools
 
 | Tool | Description |
 |------|-------------|
 | `list_hosts` | List configured host aliases (no secrets) |
-| `run_command` | Run a shell command on a host, return stdout/stderr/exit code |
+| `run_command` | Run a shell command on a host, return stdout/stderr/exit code (capped at 64 KiB per stream) |
+| `read_output` | Page through the full output of a truncated `run_command` or a background process |
 | `start_process` | Start a long-running command in the background (nohup), return pid + work_dir |
 | `check_process` | Report process status (`running`/`succeeded`/`failed`/`unknown`), exit code and log tails |
 | `kill_process` | Kill a background process |
 | `put_file` | Upload a local path to a host via rsync |
 | `get_file` | Download a remote path from a host via rsync |
+
+Large outputs: `run_command` keeps the full output on the host (in a `work_dir`
+under `/tmp/bladerunner_mcp/`) whenever it exceeds the 64 KiB cap and returns
+`truncated: true` — page through it with `read_output(host, work_dir, offset=...)`.
 
 ## Installation
 
@@ -37,6 +51,8 @@ hosts:
     user: root
     port: 22
     key_path: ~/.ssh/id_ed25519
+    strict_host_key: true    # verify against system known_hosts (default: false)
+    allow_dangerous: false   # keep the dangerous-command filter on (default)
 ```
 
 ## Register with a client
@@ -59,6 +75,28 @@ Claude Desktop (`claude_desktop_config.json`):
   }
 }
 ```
+
+## Security
+
+- **Do not run your MCP client in auto-approve ("YOLO") mode with this server.**
+  Every `run_command`/`start_process` call is a real shell on a real machine;
+  keep per-call approval on so you see each command before it runs.
+- **Dangerous-command filter** — commands matching obviously catastrophic
+  patterns (`rm -rf`, `mkfs`, `dd of=/dev/...`, `shutdown`/`reboot`, fork bombs,
+  `DROP TABLE/DATABASE`) are rejected by default. This is a seatbelt against
+  accidents, **not** a security boundary: any denylist is bypassable by a
+  determined caller. Disable per host with `allow_dangerous: true`.
+- **Least privilege** — point the server at dedicated SSH accounts with the
+  minimum rights the task needs, not at `root`, and keep backups/snapshots of
+  anything it can touch.
+- **Host keys** — by default unknown host keys are auto-accepted (convenient,
+  MITM-unsafe). Set `strict_host_key: true` per host to verify against your
+  system `known_hosts` (applies to both paramiko and rsync).
+- **Auth** — prefer SSH keys. Password auth works (rsync falls back to
+  `sshpass`, which exposes the password in the local process list) and the
+  password sits in plaintext YAML; treat it as legacy-host escape hatch only.
+- **Secrets stay local** — the model sees host aliases only; keys and passwords
+  never enter the conversation. Executed commands are logged to stderr for audit.
 
 ## Design
 
@@ -96,4 +134,10 @@ ruff check . && mypy bladerunner_mcp
 - [x] 11. Add e2e tests against a docker compose sshd container (real exec, process lifecycle, rsync round-trip)
 - [x] 12. Document installation and Claude Desktop / Claude Code MCP registration in README
 - [x] 13. Set up CI (ruff, mypy, unit tests, e2e) via GitHub Actions
-- [ ] 14. Publish `bladerunner-mcp` to PyPI (trusted-publishing workflow is in place; needs a PyPI project + `pypi` environment configured on GitHub)
+- [x] 14. Cap `run_command` output per stream and add `read_output` pagination over host-side work_dir files
+- [x] 15. Add execution timeout (deadline poll on exit status) so hung commands fail instead of blocking forever
+- [x] 16. Decode remote output with `errors="replace"` and validate `work_dir` tool arguments
+- [x] 17. Add `strict_host_key` per-host option (system known_hosts for both paramiko and rsync)
+- [x] 18. Add dangerous-command safety filter with per-host `allow_dangerous` opt-out
+- [x] 19. Add audit logging of executed commands to stderr and YOLO-mode warning (README + server instructions)
+- [ ] 20. Publish `bladerunner-mcp` to PyPI (trusted-publishing workflow is in place; needs a PyPI project + `pypi` environment configured on GitHub)

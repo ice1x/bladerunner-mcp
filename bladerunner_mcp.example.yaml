@@ -6,6 +6,8 @@ hosts:
     user: root
     port: 22
     key_path: ~/.ssh/id_ed25519
+    strict_host_key: true     # verify against system known_hosts (default: false)
+    allow_dangerous: false    # keep the dangerous-command filter on (default)
   legacy-box:
     host: 198.51.100.7
     user: deploy

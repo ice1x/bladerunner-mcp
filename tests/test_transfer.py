@@ -56,3 +56,26 @@ def test_transfer_error_propagates(rsync, host):
     rsync.return_value.put.side_effect = RuntimeError("rsync exited 23")
     with pytest.raises(RuntimeError, match="rsync exited 23"):
         server.put_file(host, "a", "/b")
+
+
+def test_default_host_skips_host_key_checking(rsync, host):
+    server.put_file(host, "a", "/b")
+    options = rsync.call_args.args[0].options
+    assert options.strict_host_key_checking == "no"
+    assert options.user_known_hosts_file == "/dev/null"
+
+
+def test_strict_host_enables_host_key_checking(rsync, write_config, fake):
+    write_config(
+        {
+            "strict": {
+                "host": fake.ipv4(),
+                "user": fake.user_name(),
+                "strict_host_key": True,
+            }
+        }
+    )
+    server.put_file("strict", "a", "/b")
+    options = rsync.call_args.args[0].options
+    assert options.strict_host_key_checking == "yes"
+    assert options.user_known_hosts_file is None
