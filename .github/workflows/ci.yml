@@ -16,7 +16,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Add host tools to PATH
         run: echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
-      - run: uv venv .venv --python 3.12
+      # --managed-python: without it uv discovers the host's x86_64 miniconda
+      # python, cryptography has no macOS x86_64 wheel and a Rosetta source
+      # build fails on missing OpenSSL headers
+      - run: uv venv .venv --python 3.12 --managed-python
       - run: uv pip install -e ".[dev]"
       - run: .venv/bin/ruff check bladerunner_mcp tests
       - run: .venv/bin/ruff format --check bladerunner_mcp tests
@@ -31,6 +34,9 @@ jobs:
         run: |
           echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
           echo "/Applications/Docker.app/Contents/Resources/bin" >> "$GITHUB_PATH"
-      - run: uv venv .venv --python 3.12
+      # --managed-python: without it uv discovers the host's x86_64 miniconda
+      # python, cryptography has no macOS x86_64 wheel and a Rosetta source
+      # build fails on missing OpenSSL headers
+      - run: uv venv .venv --python 3.12 --managed-python
       - run: uv pip install -e ".[dev]"
       - run: RUN_E2E=1 .venv/bin/pytest -q tests/e2e
