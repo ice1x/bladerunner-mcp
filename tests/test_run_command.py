@@ -128,8 +128,10 @@ def test_strict_host_key_uses_system_known_hosts(ssh, write_config, fake):
 
 
 def test_connection_error_propagates_and_closes(ssh, host):
-    ssh.connect.side_effect = OSError("unreachable")
-    with pytest.raises(OSError, match="unreachable"):
+    import paramiko
+
+    ssh.connect.side_effect = paramiko.AuthenticationException("denied")
+    with pytest.raises(paramiko.AuthenticationException):
         run_command(host, "true")
     ssh.close.assert_called_once()
 

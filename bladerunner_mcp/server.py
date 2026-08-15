@@ -27,8 +27,18 @@ from rsync_ssh_client import RsyncConfig, RsyncOptions, RsyncSSHClient
 DEFAULT_CONFIG_PATH = "~/.bladerunner_mcp.yaml"
 WORK_DIR_ROOT = "/tmp/bladerunner_mcp"
 MAX_OUTPUT_BYTES = 65536
-LOG_TAIL_LINES = 50
+TAIL_BYTES = 4096
 POLL_INTERVAL = 0.05
+RETRY_DELAYS = (0.5, 1.0)
+
+# Checked first: AuthenticationException is a subclass of SSHException
+PERMANENT_SSH_EXCEPTIONS = (
+    paramiko.AuthenticationException,
+    paramiko.BadHostKeyException,
+    FileNotFoundError,
+    ValueError,
+)
+TRANSIENT_SSH_EXCEPTIONS = (paramiko.SSHException, EOFError, OSError)
 
 INSTRUCTIONS = (
     "These tools run real commands on the user's remote machines with the user's "
@@ -106,26 +116,41 @@ def _validate_work_dir(work_dir: str) -> str:
     return work_dir
 
 
+def _is_transient(exc: BaseException) -> bool:
+    if isinstance(exc, PERMANENT_SSH_EXCEPTIONS):
+        return False
+    return isinstance(exc, TRANSIENT_SSH_EXCEPTIONS)
+
+
 def _connect(spec: Host, timeout: float) -> paramiko.SSHClient:
-    client = paramiko.SSHClient()
-    if spec.strict_host_key:
-        client.load_system_host_keys()
-        client.set_missing_host_key_policy(paramiko.RejectPolicy())
-    else:
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    try:
-        client.connect(
-            hostname=spec.host,
-            port=spec.port,
-            username=spec.user,
-            key_filename=_expand(spec.key_path),
-            password=spec.password,
-            timeout=timeout,
-        )
-    except Exception:
-        client.close()
-        raise
-    return client
+    delays: tuple[float | None, ...] = (*RETRY_DELAYS, None)
+    for delay in delays:
+        client = paramiko.SSHClient()
+        if spec.strict_host_key:
+            client.load_system_host_keys()
+            client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        else:
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            client.connect(
+                hostname=spec.host,
+                port=spec.port,
+                username=spec.user,
+                key_filename=_expand(spec.key_path),
+                password=spec.password,
+                timeout=timeout,
+            )
+        except Exception as exc:
+            client.close()
+            if delay is None or not _is_transient(exc):
+                raise
+            logger.warning(
+                "SSH connect to %s failed (%s), retrying in %.1fs", spec.host, exc, delay
+            )
+            time.sleep(delay)
+        else:
+            return client
+    raise RuntimeError("unreachable")  # pragma: no cover
 
 
 def _exec(
@@ -272,15 +297,24 @@ def check_process(host: str, pid: int, work_dir: str, timeout: float = 30.0) -> 
     _validate_work_dir(work_dir)
     client = _connect(get_host(host), timeout)
     try:
-        alive_code, _, _ = _exec(client, f"kill -0 {pid} 2>/dev/null", timeout)
+        # Match on the command line, not bare PID liveness, so a recycled PID
+        # belonging to an unrelated process is not reported as running.
+        # ps -p is POSIX; busybox ps lacks -p, hence the /proc fallback.
+        _, ps_out, _ = _exec(
+            client,
+            f"ps -p {pid} -o args= 2>/dev/null"
+            f" || cat /proc/{pid}/cmdline 2>/dev/null | tr '\\0' ' '",
+            timeout,
+        )
+        alive = f"{work_dir}/run.sh" in ps_out
         _, exit_out, _ = _exec(client, f"cat {work_dir}/exit_code 2>/dev/null", timeout)
         _, out_tail, _ = _exec(
-            client, f"tail -n {LOG_TAIL_LINES} {work_dir}/stdout.log 2>/dev/null", timeout
+            client, f"tail -c {TAIL_BYTES} {work_dir}/stdout.log 2>/dev/null", timeout
         )
         _, err_tail, _ = _exec(
-            client, f"tail -n {LOG_TAIL_LINES} {work_dir}/stderr.log 2>/dev/null", timeout
+            client, f"tail -c {TAIL_BYTES} {work_dir}/stderr.log 2>/dev/null", timeout
         )
-        if alive_code == 0:
+        if alive:
             status, exit_code = "running", None
         elif exit_out.strip().isdigit():
             exit_code = int(exit_out.strip())

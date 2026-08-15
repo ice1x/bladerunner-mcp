@@ -43,7 +43,12 @@ def test_start_process_launch_failure(ssh, host):
 
 
 def test_check_process_running(ssh, host):
-    ssh.responses = [(0, b"", b""), (1, b"", b""), (0, b"partial\n", b""), (0, b"", b"")]
+    ssh.responses = [
+        (0, b"sh /tmp/bladerunner_mcp/abc/run.sh\n", b""),
+        (1, b"", b""),
+        (0, b"partial\n", b""),
+        (0, b"", b""),
+    ]
     result = check_process(host, 42, "/tmp/bladerunner_mcp/abc")
     assert result["status"] == "running"
     assert result["exit_code"] is None
@@ -51,20 +56,20 @@ def test_check_process_running(ssh, host):
 
 
 def test_check_process_succeeded(ssh, host):
-    ssh.responses = [(1, b"", b""), (0, b"0\n", b""), (0, b"done\n", b""), (0, b"", b"")]
+    ssh.responses = [(0, b"", b""), (0, b"0\n", b""), (0, b"done\n", b""), (0, b"", b"")]
     result = check_process(host, 42, "/tmp/bladerunner_mcp/abc")
     assert (result["status"], result["exit_code"]) == ("succeeded", 0)
 
 
 def test_check_process_failed(ssh, host):
-    ssh.responses = [(1, b"", b""), (0, b"3\n", b""), (0, b"", b""), (0, b"err\n", b"")]
+    ssh.responses = [(0, b"", b""), (0, b"3\n", b""), (0, b"", b""), (0, b"err\n", b"")]
     result = check_process(host, 42, "/tmp/bladerunner_mcp/abc")
     assert (result["status"], result["exit_code"]) == ("failed", 3)
     assert result["stderr_tail"] == "err\n"
 
 
 def test_check_process_unknown(ssh, host):
-    ssh.responses = [(1, b"", b""), (1, b"", b""), (0, b"", b""), (0, b"", b"")]
+    ssh.responses = [(0, b"", b""), (1, b"", b""), (0, b"", b""), (0, b"", b"")]
     result = check_process(host, 42, "/tmp/bladerunner_mcp/abc")
     assert (result["status"], result["exit_code"]) == ("unknown", None)
 
@@ -80,6 +85,18 @@ def test_kill_process_already_gone(ssh, host):
     result = kill_process(host, 42)
     assert result["killed"] is False
     assert "no such process" in result["detail"]
+
+
+def test_check_process_recycled_pid_not_running(ssh, host):
+    """A recycled PID with foreign cmdline must not be reported as running."""
+    ssh.responses = [
+        (0, b"nginx: worker process\n", b""),
+        (0, b"0\n", b""),
+        (0, b"done\n", b""),
+        (0, b"", b""),
+    ]
+    result = check_process(host, 42, "/tmp/bladerunner_mcp/abc")
+    assert (result["status"], result["exit_code"]) == ("succeeded", 0)
 
 
 def test_check_process_rejects_foreign_work_dir(ssh, host):

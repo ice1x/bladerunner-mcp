@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 — 2026-08-16
+
+### Added
+- Automatic retry of transient SSH connection errors (3 attempts, 0.5s/1s
+  backoff). Permanent errors (authentication, host key rejection, missing key
+  file) fail immediately.
+
+### Fixed
+- PID-reuse race in `check_process`: liveness is now determined by matching
+  the process command line (`ps -p <pid> -o args=`, falling back to
+  `/proc/<pid>/cmdline` for busybox hosts) against the work_dir script, so a
+  recycled PID belonging to an unrelated process is no longer reported as
+  `running`.
+- `check_process` log tails are now capped by bytes (4 KiB per stream) instead
+  of lines, so a single giant line cannot blow up the response.
+
+### Changed
+- PyPI metadata: classifiers, keywords, repository/changelog URLs.
+
 ## 0.2.0 — 2026-08-16
 
 Production-hardening release.
@@ -28,11 +47,10 @@ Production-hardening release.
 - `check_process` and `read_output` validate that `work_dir` matches
   `/tmp/bladerunner_mcp/<hex>`.
 
-### Known limitations
+### Known limitations (as of 0.2.0)
 - POSIX remote hosts only (`sh`, `nohup`, `tail`, `head`, `wc` required).
-- No automatic retries on transient network errors; the tool call fails and
-  can be retried by the caller.
-- `check_process` can report a recycled PID as `running` (PID-reuse race).
+- No automatic retries on transient network errors (fixed in 0.3.0).
+- `check_process` can report a recycled PID as `running` (fixed in 0.3.0).
 - Password auth uses `sshpass` for rsync, which exposes the password in the
   local process list; prefer key auth.
 

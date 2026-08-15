@@ -4,12 +4,26 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bladerunner-mcp"
-version = "0.2.0"
+version = "0.3.0"
 description = "MCP server exposing SSH command execution, background process control and rsync file transfer for configured hosts"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "ice1x" }]
 requires-python = ">=3.10"
+keywords = ["mcp", "ssh", "rsync", "remote", "devops", "ai", "llm"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Systems Administration",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 dependencies = [
     "mcp>=2.0",
     "paramiko>=3.4",
@@ -32,6 +46,8 @@ bladerunner-mcp = "bladerunner_mcp.server:main"
 
 [project.urls]
 Homepage = "https://github.com/ice1x/bladerunner-mcp"
+Repository = "https://github.com/ice1x/bladerunner-mcp"
+Changelog = "https://github.com/ice1x/bladerunner-mcp/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["bladerunner_mcp"]
