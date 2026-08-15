@@ -1,0 +1,51 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "bladerunner-mcp"
+version = "0.1.0"
+description = "MCP server exposing SSH command execution, background process control and rsync file transfer for configured hosts"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "ice1x" }]
+requires-python = ">=3.10"
+dependencies = [
+    "mcp>=2.0",
+    "paramiko>=3.4",
+    "pyyaml>=6.0",
+    "rsync-ssh-client>=0.1.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "faker>=25.0",
+    "ruff>=0.4",
+    "mypy>=1.10",
+    "types-paramiko",
+    "types-PyYAML",
+]
+
+[project.scripts]
+bladerunner-mcp = "bladerunner_mcp.server:main"
+
+[project.urls]
+Homepage = "https://github.com/ice1x/bladerunner-mcp"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bladerunner_mcp"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+
+[[tool.mypy.overrides]]
+module = "rsync_ssh_client.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

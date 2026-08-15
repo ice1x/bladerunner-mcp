@@ -1,0 +1,12 @@
+# Copy to ~/.bladerunner_mcp.yaml (or point BLADERUNNER_MCP_CONFIG at it).
+# The model only ever sees the aliases (hetzner-prod, legacy-box), never the secrets.
+hosts:
+  hetzner-prod:
+    host: 203.0.113.10
+    user: root
+    port: 22
+    key_path: ~/.ssh/id_ed25519
+  legacy-box:
+    host: 198.51.100.7
+    user: deploy
+    password: "prefer-key-auth"  # password auth needs sshpass installed for file transfer
