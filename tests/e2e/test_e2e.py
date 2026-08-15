@@ -6,6 +6,7 @@ import subprocess
 import time
 from pathlib import Path
 
+import paramiko
 import pytest
 import yaml
 
@@ -67,7 +68,7 @@ def host(sshd, tmp_path, monkeypatch):
         try:
             if run_command("e2e", "true")["exit_code"] == 0:
                 return "e2e"
-        except Exception:
+        except (OSError, paramiko.SSHException):
             time.sleep(1)
     pytest.fail("sshd container did not become ready")
 
