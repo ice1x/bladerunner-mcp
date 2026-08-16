@@ -173,3 +173,34 @@ def test_allow_dangerous_bypasses_transfer_guard(rsync, write_config, fake):
     write_config({"yolo": {"host": fake.ipv4(), "user": fake.user_name(), "allow_dangerous": True}})
     put_file("yolo", "x", "/etc/cron.d/x")
     rsync.return_value.put.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cp evil.sh /etc/cron.d/evil",
+        "cp -r payload/ /usr/local/bin",
+        "rsync -a site/ /etc/nginx",
+        "install -m 755 backdoor /sbin/init2",
+        "ln -sf /tmp/evil /etc/resolv.conf",
+    ],
+)
+def test_copy_into_protected_paths_blocked(ssh, host, command):
+    with pytest.raises(ValueError, match="safety filter"):
+        run_command(host, command)
+    ssh.connect.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "cp /etc/passwd /tmp/backup",
+        "cp -r /etc /backup/etc-snapshot",
+        "rsync -a /var/lib/postgresql /backup/",
+        "ln -s /etc/nginx/nginx.conf ./nginx-link",
+    ],
+)
+def test_copy_from_protected_paths_passes(ssh, host, command):
+    ssh.responses = list(OK_RESPONSES)
+    run_command(host, command)
+    ssh.connect.assert_called_once()
