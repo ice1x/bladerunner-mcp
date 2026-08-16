@@ -57,6 +57,7 @@ hosts:
     user: root
     port: 22
     key_path: ~/.ssh/id_ed25519
+    # key_passphrase: "..."  # for passphrase-protected keys (commands only)
     strict_host_key: true    # verify against system known_hosts (default: false)
     allow_dangerous: false   # keep the safety filters on (default)
     # protected_paths: [/etc, /var/lib]               # override the default protected list
@@ -92,7 +93,7 @@ Claude Desktop (`claude_desktop_config.json`):
   keep per-call approval on so you see each command before it runs.
 - **Protected-path filter (commands)** — mutating operations (`rm`, `mv`,
   `chmod`, `chown`, `shred`, `truncate`, `chattr`, `sed -i`, `tee`, output
-  redirects) on system paths (`/`, `/etc`, `/boot`, `/bin`, `/sbin`, `/usr`,
+  redirects, and `cp`/`rsync`/`install`/`ln` writing into them) on system paths (`/`, `/etc`, `/boot`, `/bin`, `/sbin`, `/usr`,
   `/lib*`, `/dev`, `/sys`, `/proc`, `/root`, `/var/lib`) are rejected; reads of
   the same paths and mutations elsewhere pass. Catastrophic non-path patterns
   (`mkfs`, `dd of=/dev/...`, `shutdown`/`reboot`, fork bombs,
@@ -113,7 +114,9 @@ Claude Desktop (`claude_desktop_config.json`):
 - **Host keys** — by default unknown host keys are auto-accepted (convenient,
   MITM-unsafe). Set `strict_host_key: true` per host to verify against your
   system `known_hosts` (applies to both paramiko and rsync).
-- **Auth** — prefer SSH keys. Password auth works (rsync falls back to
+- **Auth** — prefer SSH keys; passphrase-protected keys work for command
+  tools via `key_passphrase` (transfers need an agent-loaded or plain key).
+  Password auth works (rsync falls back to
   `sshpass`, which exposes the password in the local process list) and the
   password sits in plaintext YAML; treat it as legacy-host escape hatch only.
 - **Secrets stay local** — the model sees host aliases only; keys and passwords

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-08-16
+
+### Added
+- `key_passphrase` per-host option for passphrase-protected SSH keys
+  ([#12](https://github.com/ice1x/bladerunner-mcp/issues/12)): passed to
+  paramiko for command tools. rsync transfers cannot use a passphrase
+  non-interactively — transfers still need an agent-loaded or
+  passphrase-less key. Plaintext-in-YAML trade-off, same as `password`.
+- Copy-like commands (`cp`, `rsync`, `install`, `ln`) are now blocked when a
+  protected path is in destination (final-argument) position
+  ([#13](https://github.com/ice1x/bladerunner-mcp/issues/13)):
+  `cp evil /etc/cron.d/x` is rejected while `cp /etc/passwd /tmp/backup`
+  keeps passing. Heuristic, same caveats as the rest of the filter.
+- `put_file`/`get_file` retry transient rsync failures (exit codes 10, 12,
+  30, 35, 255) with the same backoff as SSH connects; permanent codes fail
+  immediately ([#14](https://github.com/ice1x/bladerunner-mcp/issues/14)).
+
+
 ## 0.4.0 — 2026-08-16
 
 Path-based guards ([#8](https://github.com/ice1x/bladerunner-mcp/issues/8)).

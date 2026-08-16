@@ -16,8 +16,10 @@ import re
 import shlex
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+from subprocess import CalledProcessError
 from typing import Any
 
 import paramiko
@@ -85,6 +87,8 @@ LOCAL_PROTECTED_PATHS = (
     "~/Library/Keychains",
 )
 MUTATING_COMMANDS = ("rm", "mv", "shred", "truncate", "chattr", "chmod", "chown")
+COPY_COMMANDS = ("cp", "rsync", "install", "ln")
+TRANSIENT_RSYNC_EXIT_CODES = {10, 12, 30, 35, 255}
 
 
 @dataclass(frozen=True)
@@ -93,6 +97,7 @@ class Host:
     user: str
     port: int = 22
     key_path: str | None = None
+    key_passphrase: str | None = None
     password: str | None = None
     strict_host_key: bool = False
     allow_dangerous: bool = False
@@ -143,6 +148,7 @@ def _check_command(command: str, spec: Host) -> None:
         else (list(DEFAULT_PROTECTED_PATHS))
     )
     mutators = "|".join(MUTATING_COMMANDS)
+    copiers = "|".join(COPY_COMMANDS)
     for path in protected:
         target = _protected_target(path)
         combos = (
@@ -150,6 +156,8 @@ def _check_command(command: str, spec: Host) -> None:
             rf"\bsed\b[^|;&>]*\s-i[^|;&>]*[\s'\"]{target}",
             rf"\btee\b[^|;&>]*[\s'\"]{target}",
             rf">>?\s*['\"]?{target}",
+            # copy-like command with a protected path in destination (final) position
+            rf"\b({copiers})\b[^|;&>]*[\s'\"]{target}[^\s|;&]*['\"]?\s*(?=$|[|;&])",
         )
         for combo in combos:
             if re.search(combo, command):
@@ -222,6 +230,7 @@ def _connect(spec: Host, timeout: float) -> paramiko.SSHClient:
                 port=spec.port,
                 username=spec.user,
                 key_filename=_expand(spec.key_path),
+                passphrase=spec.key_passphrase,
                 password=spec.password,
                 timeout=timeout,
             )
@@ -445,13 +454,27 @@ def _rsync(spec: Host) -> "RsyncSSHClient":
     )
 
 
+def _transfer_with_retry(op: Callable[[], str]) -> str:
+    """Run an rsync operation, retrying transient network failures."""
+    delays: tuple[float | None, ...] = (*RETRY_DELAYS, None)
+    for delay in delays:
+        try:
+            return op()
+        except CalledProcessError as exc:
+            if delay is None or exc.returncode not in TRANSIENT_RSYNC_EXIT_CODES:
+                raise
+            logger.warning("rsync failed with exit %s, retrying in %.1fs", exc.returncode, delay)
+            time.sleep(delay)
+    raise RuntimeError("unreachable")  # pragma: no cover
+
+
 @mcp.tool()
 def put_file(host: str, local_path: str, remote_path: str) -> str:
     """Upload a local file or directory to a configured host via rsync."""
     logger.info("put_file host=%s local=%s remote=%s", host, local_path, remote_path)
     spec = get_host(host)
     _check_transfer(spec, local_path, remote_path)
-    return _rsync(spec).put(local_path, remote_path)
+    return _transfer_with_retry(lambda: _rsync(spec).put(local_path, remote_path))
 
 
 @mcp.tool()
@@ -460,7 +483,7 @@ def get_file(host: str, remote_path: str, local_path: str) -> str:
     logger.info("get_file host=%s remote=%s local=%s", host, remote_path, local_path)
     spec = get_host(host)
     _check_transfer(spec, local_path, remote_path)
-    return _rsync(spec).get(remote_path, local_path)
+    return _transfer_with_retry(lambda: _rsync(spec).get(remote_path, local_path))
 
 
 def main() -> None:

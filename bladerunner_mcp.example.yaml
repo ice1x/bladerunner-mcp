@@ -6,6 +6,8 @@ hosts:
     user: root
     port: 22
     key_path: ~/.ssh/id_ed25519
+    # key_passphrase: "..."   # for passphrase-protected keys (commands only;
+    #                         # rsync transfers need an agent-loaded or plain key)
     strict_host_key: true     # verify against system known_hosts (default: false)
     allow_dangerous: false    # keep the safety filters on (default)
     # protected_paths: [/etc, /var/lib]               # override the default protected list
@@ -15,3 +17,8 @@ hosts:
     host: 198.51.100.7
     user: deploy
     password: "prefer-key-auth"  # password auth needs sshpass installed for file transfer
+
+# Default protected paths (mutating commands and transfer destinations are
+# blocked there unless overridden with protected_paths / allow_dangerous):
+#   /  /etc  /boot  /bin  /sbin  /usr  /lib  /lib64  /dev  /sys  /proc  /root  /var/lib
+# Locally, transfers additionally protect: ~/.ssh  ~/.gnupg  ~/Library/Keychains
