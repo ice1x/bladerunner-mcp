@@ -37,15 +37,19 @@ def sshd():
     keys.mkdir(exist_ok=True)
     key = keys / "id_test"
     if not key.exists():
-        subprocess.run(["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
-    subprocess.run([*COMPOSE, "up", "-d", "--build"], check=True)
+        subprocess.run(
+            ["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(key)], check=True, timeout=60
+        )
+    # Timeouts everywhere: a wedged docker daemon must fail the suite in
+    # minutes, not hang the CI job until the 6h workflow limit.
+    subprocess.run([*COMPOSE, "up", "-d", "--build"], check=True, timeout=600)
     try:
         out = subprocess.run(
-            [*COMPOSE, "port", "sshd", "22"], check=True, capture_output=True, text=True
+            [*COMPOSE, "port", "sshd", "22"], check=True, capture_output=True, text=True, timeout=60
         ).stdout.strip()
         yield {"port": int(out.rsplit(":", 1)[1]), "key": str(key)}
     finally:
-        subprocess.run([*COMPOSE, "down", "-v"], check=False)
+        subprocess.run([*COMPOSE, "down", "-v"], check=False, timeout=120)
 
 
 @pytest.fixture
