@@ -7,7 +7,10 @@ hosts:
     port: 22
     key_path: ~/.ssh/id_ed25519
     strict_host_key: true     # verify against system known_hosts (default: false)
-    allow_dangerous: false    # keep the dangerous-command filter on (default)
+    allow_dangerous: false    # keep the safety filters on (default)
+    # protected_paths: [/etc, /var/lib]               # override the default protected list
+    # allowed_remote_paths: [/srv/app, /var/log/app]  # opt-in transfer allowlist
+    # allowed_local_paths: [~/deploys]
   legacy-box:
     host: 198.51.100.7
     user: deploy

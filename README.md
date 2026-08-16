@@ -58,7 +58,10 @@ hosts:
     port: 22
     key_path: ~/.ssh/id_ed25519
     strict_host_key: true    # verify against system known_hosts (default: false)
-    allow_dangerous: false   # keep the dangerous-command filter on (default)
+    allow_dangerous: false   # keep the safety filters on (default)
+    # protected_paths: [/etc, /var/lib]               # override the default protected list
+    # allowed_remote_paths: [/srv/app, /var/log/app]  # opt-in transfer allowlist
+    # allowed_local_paths: [~/deploys]
 ```
 
 ## Register with a client
@@ -136,29 +139,3 @@ pytest                      # unit tests (mocked paramiko/rsync)
 RUN_E2E=1 pytest tests/e2e  # e2e against a docker compose sshd container
 ruff check . && mypy bladerunner_mcp
 ```
-
-## PoC tasks
-
-- [x] 1. Scaffold Python package (`pyproject.toml`, `bladerunner_mcp/server.py`) with `mcp` and `paramiko` dependencies and a `bladerunner-mcp` console entry point
-- [x] 2. Write unit tests for YAML host config loading (aliases, key/password auth, defaults, missing-file and unknown-alias errors)
-- [x] 3. Implement config loading: read hosts from `BLADERUNNER_MCP_CONFIG` or `~/.bladerunner_mcp.yaml` into typed dataclasses
-- [x] 4. Write unit tests for `run_command` (mocked paramiko: stdout/stderr capture, exit code, connection error surfaced as tool error)
-- [x] 5. Implement MCP server with `list_hosts` and `run_command` tools using paramiko with per-call connect/close and timeout
-- [x] 6. Write unit tests for background process tools (start/check/kill, mocked paramiko)
-- [x] 7. Implement `start_process` / `check_process` / `kill_process` reusing blade_runner's nohup + PID + exit-code-file pattern
-- [x] 8. Write unit tests for `put_file` / `get_file` (mocked `RsyncSSHClient`: config mapping, direction, error propagation)
-- [x] 9. Implement `put_file` / `get_file` tools on top of `rsync_ssh_client`
-- [x] 10. Add example config `bladerunner_mcp.example.yaml` to the repo
-- [x] 11. Add e2e tests against a docker compose sshd container (real exec, process lifecycle, rsync round-trip)
-- [x] 12. Document installation and Claude Desktop / Claude Code MCP registration in README
-- [x] 13. Set up CI (ruff, mypy, unit tests, e2e) via GitHub Actions
-- [x] 14. Cap `run_command` output per stream and add `read_output` pagination over host-side work_dir files
-- [x] 15. Add execution timeout (deadline poll on exit status) so hung commands fail instead of blocking forever
-- [x] 16. Decode remote output with `errors="replace"` and validate `work_dir` tool arguments
-- [x] 17. Add `strict_host_key` per-host option (system known_hosts for both paramiko and rsync)
-- [x] 18. Add dangerous-command safety filter with per-host `allow_dangerous` opt-out
-- [x] 19. Add audit logging of executed commands to stderr and YOLO-mode warning (README + server instructions)
-- [x] 20. Retry transient SSH connection errors (3 attempts with backoff; auth/host-key errors fail fast)
-- [x] 21. Fix PID-reuse race: liveness matched on the process command line (`ps -p -o args=` with `/proc` fallback), not bare `kill -0`
-- [x] 22. Cap `check_process` log tails by bytes and polish PyPI metadata (classifiers, keywords, project URLs)
-- [ ] 23. Publish `bladerunner-mcp` to PyPI (trusted-publishing workflow is in place; needs a PyPI project + `pypi` environment configured on GitHub)
