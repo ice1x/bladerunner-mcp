@@ -87,11 +87,23 @@ Claude Desktop (`claude_desktop_config.json`):
 - **Do not run your MCP client in auto-approve ("YOLO") mode with this server.**
   Every `run_command`/`start_process` call is a real shell on a real machine;
   keep per-call approval on so you see each command before it runs.
-- **Dangerous-command filter** — commands matching obviously catastrophic
-  patterns (`rm -rf`, `mkfs`, `dd of=/dev/...`, `shutdown`/`reboot`, fork bombs,
-  `DROP TABLE/DATABASE`) are rejected by default. This is a seatbelt against
-  accidents, **not** a security boundary: any denylist is bypassable by a
-  determined caller. Disable per host with `allow_dangerous: true`.
+- **Protected-path filter (commands)** — mutating operations (`rm`, `mv`,
+  `chmod`, `chown`, `shred`, `truncate`, `chattr`, `sed -i`, `tee`, output
+  redirects) on system paths (`/`, `/etc`, `/boot`, `/bin`, `/sbin`, `/usr`,
+  `/lib*`, `/dev`, `/sys`, `/proc`, `/root`, `/var/lib`) are rejected; reads of
+  the same paths and mutations elsewhere pass. Catastrophic non-path patterns
+  (`mkfs`, `dd of=/dev/...`, `shutdown`/`reboot`, fork bombs,
+  `DROP TABLE/DATABASE`) are also rejected. Override with per-host
+  `protected_paths`. This is a seatbelt against accidents, **not** a security
+  boundary: shell is not statically analyzable. Disable per host with
+  `allow_dangerous: true`.
+- **Path validation (transfers)** — `put_file`/`get_file` paths are expanded
+  and normalized (`..` resolved) and then enforced for real: protected system
+  prefixes are denied on the remote side, and `~/.ssh`, `~/.gnupg`,
+  `~/Library/Keychains` plus system dirs on the local side (both directions —
+  exfiltrating local keys is as bad as overwriting them). Optional per-host
+  `allowed_remote_paths` / `allowed_local_paths` restrict transfers to listed
+  prefixes. Remote symlinks are not resolved (known limit).
 - **Least privilege** — point the server at dedicated SSH accounts with the
   minimum rights the task needs, not at `root`, and keep backups/snapshots of
   anything it can touch.

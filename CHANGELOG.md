@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.4.0 — 2026-08-16
+
+Path-based guards ([#8](https://github.com/ice1x/bladerunner-mcp/issues/8)).
+
+### Changed
+- The command safety filter no longer blocks `rm -rf` by name. Instead it
+  blocks **mutating operations on protected paths**: `rm`/`mv`/`shred`/
+  `truncate`/`chattr`/`chmod`/`chown`, `sed -i`, `tee` and output redirects
+  targeting `/`, `/etc`, `/boot`, `/bin`, `/sbin`, `/usr`, `/lib`, `/lib64`,
+  `/dev`, `/sys`, `/proc`, `/root`, `/var/lib`. Reads of those paths and
+  mutations elsewhere (`rm -rf /tmp/build`) pass. Override the list per host
+  with `protected_paths`; still a heuristic, not a boundary.
+
+### Added
+- Real path validation for `put_file`/`get_file`: paths are `~`-expanded and
+  normalized (`..` resolved) before checking. Both sides are deny-by-default
+  on protected prefixes — remote system dirs, and locally also `~/.ssh`,
+  `~/.gnupg`, `~/Library/Keychains` (an AI writing to the operator's
+  `authorized_keys`, or uploading their private keys, is the actual threat).
+  Remote paths must be absolute.
+- Optional per-host `allowed_remote_paths` / `allowed_local_paths` allowlists:
+  unset means everything except protected is allowed; set means transfers must
+  additionally stay under a listed prefix.
+- `allow_dangerous: true` still disables all guards per host.
+
+
 ## 0.3.0 — 2026-08-16
 
 ### Added
