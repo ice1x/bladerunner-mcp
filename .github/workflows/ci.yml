@@ -5,54 +5,26 @@ on:
     branches: [main]
   pull_request:
 
-# Runs on a self-hosted macOS runner. actions/setup-python is unusable there:
-# its darwin builds are hard-wired to /Users/runner/hostedtoolcache, so we use
-# the host's uv (which manages its own relocatable CPython) instead.
-
 jobs:
   test:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add host tools to PATH
-        run: echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
-      # --managed-python: without it uv discovers the host's x86_64 miniconda
-      # python, cryptography has no macOS x86_64 wheel and a Rosetta source
-      # build fails on missing OpenSSL headers
-      - run: uv venv .venv --python 3.12 --managed-python
-      - run: uv pip install -e ".[dev]"
-      - run: .venv/bin/ruff check bladerunner_mcp tests
-      - run: .venv/bin/ruff format --check bladerunner_mcp tests
-      - run: .venv/bin/mypy bladerunner_mcp
-      - run: .venv/bin/pytest -q
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check bladerunner_mcp tests
+      - run: ruff format --check bladerunner_mcp tests
+      - run: mypy bladerunner_mcp
+      - run: pytest -q
 
   e2e:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Add host tools to PATH
-        run: |
-          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
-          echo "/Applications/Docker.app/Contents/Resources/bin" >> "$GITHUB_PATH"
-      # The launchd runner session cannot unlock the login keychain, and
-      # Docker Desktop's CLI auto-selects the osxkeychain/desktop credential
-      # helpers from PATH even with an empty config.json. Shadow them with
-      # stubs speaking the credential-helper protocol for "no stored
-      # credentials" so pulls of public images proceed anonymously.
-      - name: Docker without keychain credential helpers
-        run: |
-          mkdir -p "$RUNNER_TEMP/dockercfg" "$RUNNER_TEMP/dockerbin"
-          echo '{}' > "$RUNNER_TEMP/dockercfg/config.json"
-          ln -sfn "$HOME/.docker/cli-plugins" "$RUNNER_TEMP/dockercfg/cli-plugins"
-          echo "DOCKER_CONFIG=$RUNNER_TEMP/dockercfg" >> "$GITHUB_ENV"
-          for h in docker-credential-osxkeychain docker-credential-desktop; do
-            printf '#!/bin/sh\necho "credentials not found in native keychain"\nexit 1\n' > "$RUNNER_TEMP/dockerbin/$h"
-            chmod +x "$RUNNER_TEMP/dockerbin/$h"
-          done
-          echo "$RUNNER_TEMP/dockerbin" >> "$GITHUB_PATH"
-      # --managed-python: without it uv discovers the host's x86_64 miniconda
-      # python, cryptography has no macOS x86_64 wheel and a Rosetta source
-      # build fails on missing OpenSSL headers
-      - run: uv venv .venv --python 3.12 --managed-python
-      - run: uv pip install -e ".[dev]"
-      - run: RUN_E2E=1 .venv/bin/pytest -q tests/e2e
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: RUN_E2E=1 pytest -q tests/e2e
