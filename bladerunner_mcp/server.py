@@ -11,6 +11,7 @@ present on the target. Windows hosts are not supported.
 
 import logging
 import os
+import posixpath
 import re
 import shlex
 import time
@@ -51,16 +52,39 @@ INSTRUCTIONS = (
 logger = logging.getLogger("bladerunner_mcp")
 
 # Seatbelt against obviously catastrophic commands, not a security boundary:
-# any denylist is bypassable. Disable per host with allow_dangerous: true.
+# shell is not statically analyzable, so any filter is bypassable. Disable per
+# host with allow_dangerous: true.
 DENY_PATTERNS = [
-    r"rm\s+(-+[a-zA-Z-]+\s+)*-+[a-zA-Z]*[rR][a-zA-Z]*[fF]",
-    r"rm\s+(-+[a-zA-Z-]+\s+)*-+[a-zA-Z]*[fF][a-zA-Z]*[rR]",
     r"\bmkfs",
     r"\bdd\s+[^|;&]*of=/dev/",
     r"\b(shutdown|reboot|halt|poweroff)\b",
     r":\(\)\s*\{",
     r"\bdrop\s+(table|database)\b",
 ]
+
+# "/" means the bare filesystem root itself, not a prefix for everything.
+DEFAULT_PROTECTED_PATHS = (
+    "/",
+    "/etc",
+    "/boot",
+    "/bin",
+    "/sbin",
+    "/usr",
+    "/lib",
+    "/lib64",
+    "/dev",
+    "/sys",
+    "/proc",
+    "/root",
+    "/var/lib",
+)
+LOCAL_PROTECTED_PATHS = (
+    *DEFAULT_PROTECTED_PATHS,
+    "~/.ssh",
+    "~/.gnupg",
+    "~/Library/Keychains",
+)
+MUTATING_COMMANDS = ("rm", "mv", "shred", "truncate", "chattr", "chmod", "chown")
 
 
 @dataclass(frozen=True)
@@ -72,6 +96,9 @@ class Host:
     password: str | None = None
     strict_host_key: bool = False
     allow_dangerous: bool = False
+    protected_paths: list[str] | None = None
+    allowed_remote_paths: list[str] | None = None
+    allowed_local_paths: list[str] | None = None
 
 
 def load_hosts(path: str | None = None) -> dict[str, Host]:
@@ -95,6 +122,12 @@ def _expand(path: str | None) -> str | None:
     return str(Path(path).expanduser()) if path else None
 
 
+def _protected_target(path: str) -> str:
+    if path == "/":
+        return r"/(?=[\s'\"]|$)"
+    return re.escape(path) + r"(?=[/\s'\"]|$)"
+
+
 def _check_command(command: str, spec: Host) -> None:
     if spec.allow_dangerous:
         return
@@ -104,6 +137,58 @@ def _check_command(command: str, spec: Host) -> None:
                 f"Command blocked by safety filter (matched {pattern!r}). "
                 "Set allow_dangerous: true for this host to disable the filter."
             )
+    protected = (
+        spec.protected_paths
+        if spec.protected_paths is not None
+        else (list(DEFAULT_PROTECTED_PATHS))
+    )
+    mutators = "|".join(MUTATING_COMMANDS)
+    for path in protected:
+        target = _protected_target(path)
+        combos = (
+            rf"\b({mutators})\b[^|;&>]*[\s'\"]{target}",
+            rf"\bsed\b[^|;&>]*\s-i[^|;&>]*[\s'\"]{target}",
+            rf"\btee\b[^|;&>]*[\s'\"]{target}",
+            rf">>?\s*['\"]?{target}",
+        )
+        for combo in combos:
+            if re.search(combo, command):
+                raise ValueError(
+                    f"Command blocked by safety filter: mutating operation on protected "
+                    f"path {path!r}. Reads of protected paths are allowed; set "
+                    "allow_dangerous: true or override protected_paths for this host."
+                )
+
+
+def _match_prefix(path: str, prefixes: list[str] | tuple[str, ...]) -> str | None:
+    for raw in prefixes:
+        prefix = os.path.expanduser(raw) if raw.startswith("~") else raw
+        prefix = prefix.rstrip("/") or "/"
+        if path == prefix or (prefix != "/" and path.startswith(prefix + "/")):
+            return raw
+    return None
+
+
+def _check_transfer(spec: Host, local_path: str, remote_path: str) -> None:
+    if spec.allow_dangerous:
+        return
+    if not remote_path.startswith("/"):
+        raise ValueError(f"remote_path must be absolute, got {remote_path!r}")
+    remote = posixpath.normpath(remote_path)
+    local = os.path.abspath(os.path.expanduser(local_path))
+    protected_remote = (
+        spec.protected_paths if spec.protected_paths is not None else DEFAULT_PROTECTED_PATHS
+    )
+    if hit := _match_prefix(remote, protected_remote):
+        raise ValueError(f"remote_path {remote_path!r} is under protected path {hit!r}")
+    if hit := _match_prefix(local, LOCAL_PROTECTED_PATHS):
+        raise ValueError(f"local_path {local_path!r} is under protected path {hit!r}")
+    if spec.allowed_remote_paths is not None and not _match_prefix(
+        remote, spec.allowed_remote_paths
+    ):
+        raise ValueError(f"remote_path {remote_path!r} is outside allowed_remote_paths")
+    if spec.allowed_local_paths is not None and not _match_prefix(local, spec.allowed_local_paths):
+        raise ValueError(f"local_path {local_path!r} is outside allowed_local_paths")
 
 
 def _new_work_dir() -> str:
@@ -364,14 +449,18 @@ def _rsync(spec: Host) -> "RsyncSSHClient":
 def put_file(host: str, local_path: str, remote_path: str) -> str:
     """Upload a local file or directory to a configured host via rsync."""
     logger.info("put_file host=%s local=%s remote=%s", host, local_path, remote_path)
-    return _rsync(get_host(host)).put(local_path, remote_path)
+    spec = get_host(host)
+    _check_transfer(spec, local_path, remote_path)
+    return _rsync(spec).put(local_path, remote_path)
 
 
 @mcp.tool()
 def get_file(host: str, remote_path: str, local_path: str) -> str:
     """Download a file or directory from a configured host via rsync."""
     logger.info("get_file host=%s remote=%s local=%s", host, remote_path, local_path)
-    return _rsync(get_host(host)).get(remote_path, local_path)
+    spec = get_host(host)
+    _check_transfer(spec, local_path, remote_path)
+    return _rsync(spec).get(remote_path, local_path)
 
 
 def main() -> None:
