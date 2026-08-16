@@ -34,6 +34,16 @@ jobs:
         run: |
           echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
           echo "/Applications/Docker.app/Contents/Resources/bin" >> "$GITHUB_PATH"
+      # The launchd runner session cannot unlock the login keychain, so the
+      # default credsStore=osxkeychain breaks every docker build/pull. Use a
+      # scratch DOCKER_CONFIG without a credential helper (images are public);
+      # symlink cli-plugins so `docker compose` keeps working.
+      - name: Docker config without keychain credsStore
+        run: |
+          mkdir -p "$RUNNER_TEMP/dockercfg"
+          echo '{}' > "$RUNNER_TEMP/dockercfg/config.json"
+          ln -sfn "$HOME/.docker/cli-plugins" "$RUNNER_TEMP/dockercfg/cli-plugins"
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/dockercfg" >> "$GITHUB_ENV"
       # --managed-python: without it uv discovers the host's x86_64 miniconda
       # python, cryptography has no macOS x86_64 wheel and a Rosetta source
       # build fails on missing OpenSSL headers
