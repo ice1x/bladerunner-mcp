@@ -219,3 +219,6 @@ __marimo__/
 
 # e2e test keys
 tests/e2e/keys/
+
+# self-hosted runner lives inside the repo dir
+actions-runner/
