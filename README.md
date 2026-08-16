@@ -1,3 +1,9 @@
+![PyPI](https://img.shields.io/pypi/v/bladerunner-mcp)
+![PyPI - Downloads](https://img.shields.io/pypi/dm/bladerunner-mcp)
+![Python](https://img.shields.io/pypi/pyversions/bladerunner-mcp)
+![License](https://img.shields.io/pypi/l/bladerunner-mcp)
+![CI](https://github.com/ice1x/bladerunner-mcp/actions/workflows/ci.yml/badge.svg)
+
 # bladerunner-mcp
 
 MCP server that lets an AI session operate your remote machines over SSH.
