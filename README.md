@@ -1,8 +1,8 @@
-![PyPI](https://img.shields.io/pypi/v/bladerunner-mcp)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/bladerunner-mcp)
-![Python](https://img.shields.io/pypi/pyversions/bladerunner-mcp)
-![License](https://img.shields.io/pypi/l/bladerunner-mcp)
-![CI](https://github.com/ice1x/bladerunner-mcp/actions/workflows/ci.yml/badge.svg)
+[![PyPI](https://img.shields.io/pypi/v/bladerunner-mcp)](https://pypi.org/project/bladerunner-mcp/)
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/bladerunner-mcp)](https://pypistats.org/packages/bladerunner-mcp)
+[![Python](https://img.shields.io/pypi/pyversions/bladerunner-mcp)](https://pypi.org/project/bladerunner-mcp/)
+[![License](https://img.shields.io/pypi/l/bladerunner-mcp)](https://github.com/ice1x/bladerunner-mcp/blob/main/LICENSE)
+[![CI](https://github.com/ice1x/bladerunner-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/ice1x/bladerunner-mcp/actions/workflows/ci.yml)
 
 # bladerunner-mcp
 
